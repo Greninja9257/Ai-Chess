@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Play Against Your Trained Neural Network AI</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 20px;
+            align-items: start;
+        }
+        
+        .game-container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .side-panel {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 25px;
+            font-style: italic;
+        }
+        
+        #board {
+            margin: 20px auto;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .primary-btn {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+        
+        .secondary-btn {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            color: white;
+        }
+        
+        .danger-btn {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+        }
+        
+        .warning-btn {
+            background: linear-gradient(45deg, #FF9800, #F57C00);
+            color: white;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .side-selector {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 15px 0;
+        }
+        
+        .side-option {
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            min-width: 100px;
+        }
+        
+        .side-option:hover {
+            border-color: #2196F3;
+            background: rgba(33, 150, 243, 0.1);
+        }
+        
+        .side-option.selected {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+        
+        .side-option .icon {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        
+        .side-option .label {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 0.9em;
+        }
+        
+        #status {
+            margin: 15px 0;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            padding: 12px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.7);
+        }
+        
+        .status-waiting { color: #2196F3; border-left: 4px solid #2196F3; }
+        .status-player-turn { color: #4CAF50; border-left: 4px solid #4CAF50; }
+        .status-ai-turn { color: #FF9800; border-left: 4px solid #FF9800; }
+        .status-game-over { color: #f44336; border-left: 4px solid #f44336; }
+        .status-error { color: #f44336; border-left: 4px solid #f44336; background: rgba(244, 67, 54, 0.1); }
+        .status-success { color: #4CAF50; border-left: 4px solid #4CAF50; background: rgba(76, 175, 80, 0.1); }
+        
+        .move-history {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(248, 249, 250, 0.8);
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .move-history h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1em;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            font-size: 0.9em;
+        }
+        
+        .stat-label {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            color: #34495e;
+        }
+        
+        .highlight-from {
+            box-shadow: inset 0 0 3px 3px rgba(255, 255, 0, 0.5);
+        }
+        
+        .highlight-to {
+            box-shadow: inset 0 0 3px 3px rgba(255, 0, 0, 0.5);
+        }
+        
+        .possible-move {
+            background-color: rgba(20, 85, 30, 0.5) !important;
+        }
+        
+        .neural-badge {
+            display: inline-block;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .connection-status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            text-align: center;
+            font-size: 0.9em;
+        }
+        
+        .connection-online {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+        }
+        
+        .connection-offline {
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            border: 1px solid #f44336;
+        }
+        
+        .debug-panel {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(240, 240, 240, 0.8);
+            border-radius: 6px;
+            font-size: 0.8em;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            h1 { font-size: 1.8em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="game-container">
+            <h1>🧠 Neural Network Chess</h1>
+            <p class="subtitle">Challenge Your Trained AI</p>
+            
+            <div id="board"></div>
+            
+            <div class="controls">
+                <button id="newGameBtn" class="primary-btn">🆕 New Game</button>
+                <button id="resignBtn" class="danger-btn" disabled>🏳️ Resign</button>
+                <button id="undoBtn" class="warning-btn" disabled>↶ Undo</button>
+                <button id="hintBtn" class="secondary-btn" disabled>💡 Hint</button>
+                <button id="testBtn" class="secondary-btn">🔧 Test AI</button>
+            </div>
+            
+            <div id="status" class="status-waiting">Testing connection to your trained AI...</div>
+            
+            <div class="move-history">
+                <h3>📝 Move History</h3>
+                <div id="moves"></div>
+            </div>
+            
+            <div class="debug-panel">
+                <strong>Debug Log:</strong>
+                <div id="debugLog">Initializing...</div>
+            </div>
+        </div>
+        
+        <div class="side-panel">
+            <h3 style="text-align: center; margin-top: 0;">⚡ Game Setup</h3>
+            
+            <div class="side-selector">
+                <div class="side-option" data-side="white">
+                    <div class="icon">♔</div>
+                    <div class="label">White</div>
+                </div>
+                <div class="side-option" data-side="black">
+                    <div class="icon">♚</div>
+                    <div class="label">Black</div>
+                </div>
+            </div>
+            
+            <button id="startGameBtn" class="primary-btn" style="width: 100%; margin: 10px 0;" disabled>
+                ▶ Start Game
+            </button>
+            
+            <div id="connectionStatus" class="connection-status connection-offline">
+                🔌 Connecting to training server...
+            </div>
+            
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+            
+            <h3 style="text-align: center; margin-bottom: 15px;">🤖 Your AI Stats</h3>
+            
+            <div class="stat-item">
+                <span class="stat-label">Generation:</span>
+                <span class="stat-value" id="generation">Loading...</span>
+            </div>
+            
+            <div class="stat-item">
+                <span class="stat-label">Training Games:</span>
+                <span class="stat-value" id="gamesPlayed">0</span>
+            </div>
+            
+            <div class="stat-item">
+                <span class="stat-label">Win Rate:</span>
+                <span class="stat-value" id="winRate">0%</span>
+            </div>
+            
+            <div class="stat-item">
+                <span class="stat-label">Current Turn:</span>
+                <span class="stat-value" id="currentTurn">-</span>
+            </div>
+            
+            <div class="stat-item">
+                <span class="stat-label">Game Moves:</span>
+                <span class="stat-value" id="movesCount">0</span>
+            </div>
+            
+            <div class="stat-item">
+                <span class="stat-label">AI Type:</span>
+                <span class="stat-value">Neural Network<span class="neural-badge">TRAINED</span></span>
+            </div>
+            
+            <button id="refreshStatsBtn" class="secondary-btn" style="width: 100%; margin-top: 15px;">
+                🔄 Refresh Stats
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        let board = null;
+        let game = new Chess();
+        let playerSide = null;
+        let gameActive = false;
+        let isAIThinking = false;
+        let moveHistory = [];
+        let moveNumber = 1;
+        let connectionOnline = false;
+
+        // Server URL - connects to your training server
+        const SERVER_URL = 'http://localhost:3000';
+
+        function debugLog(message) {
+            console.log(message);
+            const debugDiv = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            debugDiv.innerHTML = `[${timestamp}] ${message}<br>` + debugDiv.innerHTML;
+            
+            // Keep only last 8 debug messages
+            const lines = debugDiv.innerHTML.split('<br>');
+            if (lines.length > 8) {
+                debugDiv.innerHTML = lines.slice(0, 8).join('<br>');
+            }
+        }
+
+        function initializeBoard() {
+            const config = {
+                draggable: true,
+                position: 'start',
+                pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+                onDragStart: onDragStart,
+                onDrop: onDrop,
+                onSnapEnd: onSnapEnd
+            };
+            
+            board = Chessboard('board', config);
+            debugLog('Chess board initialized');
+        }
+
+        function onDragStart(source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            if (!gameActive || isAIThinking) return false;
+            
+            if ((playerSide === 'white' && piece.search(/^b/) !== -1) ||
+                (playerSide === 'black' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+            
+            if ((playerSide === 'white' && game.turn() !== 'w') ||
+                (playerSide === 'black' && game.turn() !== 'b')) {
+                return false;
+            }
+            
+            const moves = game.moves({
+                square: source,
+                verbose: true
+            });
+            
+            moves.forEach(move => {
+                document.querySelector(`.square-${move.to}`).classList.add('possible-move');
+            });
+            
+            return true;
+        }
+
+        function onDrop(source, target) {
+            clearHighlights();
+            
+            const move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q'
+            });
+
+            if (move === null) return 'snapback';
+
+            debugLog(`Player move: ${move.san} (${move.from}-${move.to})`);
+            updateMoveHistory(move);
+            updateGameInfo();
+            highlightMove(source, target);
+            
+            if (game.game_over()) {
+                handleGameOver();
+                return;
+            }
+            
+            updateStatus('🤖 Your trained AI is thinking...', 'status-ai-turn');
+            setTimeout(makeAIMove, 500);
+        }
+
+        function onSnapEnd() {
+            board.position(game.fen());
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.possible-move').forEach(square => {
+                square.classList.remove('possible-move');
+            });
+            document.querySelectorAll('.highlight-from, .highlight-to').forEach(square => {
+                square.classList.remove('highlight-from', 'highlight-to');
+            });
+        }
+
+        function highlightMove(from, to) {
+            clearHighlights();
+            document.querySelector(`.square-${from}`).classList.add('highlight-from');
+            document.querySelector(`.square-${to}`).classList.add('highlight-to');
+        }
+
+        async function makeAIMove() {
+            if (!gameActive || game.game_over()) return;
+            
+            isAIThinking = true;
+            updateStatus('🧠 Neural network analyzing position...', 'status-ai-turn');
+            
+            try {
+                const currentFEN = game.fen();
+                debugLog(`Requesting AI move for position: ${currentFEN}`);
+                
+                const response = await fetch(`${SERVER_URL}/player-move`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ fen: currentFEN })
+                });
+
+                debugLog(`Response status: ${response.status}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                debugLog(`AI response: ${data.success ? 'SUCCESS' : 'ERROR'}`);
+
+                if (!data.success || data.error) {
+                    updateStatus('❌ AI Error: ' + (data.error || 'Unknown error'), 'status-error');
+                    debugLog('AI Error: ' + (data.error || 'Unknown error'));
+                    return;
+                }
+
+                if (!data.move) {
+                    updateStatus('❌ No move received from AI', 'status-error');
+                    return;
+                }
+
+                // Apply the AI move
+                const aiMove = game.move(data.move);
+                if (!aiMove) {
+                    updateStatus('❌ Invalid AI move: ' + data.move, 'status-error');
+                    debugLog('Invalid move: ' + data.move);
+                    return;
+                }
+
+                debugLog(`AI move: ${aiMove.san} (Gen ${data.aiInfo?.generation || '?'})`);
+                board.position(game.fen());
+                updateMoveHistory(aiMove);
+                updateGameInfo();
+                highlightMove(aiMove.from, aiMove.to);
+
+                // Update AI stats if provided
+                if (data.aiInfo) {
+                    updateAIInfo(data.aiInfo);
+                }
+
+                if (game.game_over()) {
+                    handleGameOver();
+                } else {
+                    updateStatus('🎯 Your turn!', 'status-player-turn');
+                }
+
+            } catch (error) {
+                debugLog('Connection error: ' + error.message);
+                updateStatus('❌ Cannot connect to training server. Is it running?', 'status-error');
+                updateConnectionStatus(false);
+            }
+            
+            isAIThinking = false;
+        }
+
+        function updateMoveHistory(move) {
+            const moveText = `${Math.ceil(moveNumber/2)}. ${game.turn() === 'b' ? 'White' : 'Black'}: ${move.san}`;
+            moveHistory.push(moveText);
+            
+            if (moveHistory.length > 20) {
+                moveHistory = moveHistory.slice(-20);
+            }
+            
+            document.getElementById('moves').innerHTML = moveHistory.join('<br>');
+            moveNumber++;
+        }
+
+        function updateGameInfo() {
+            document.getElementById('movesCount').textContent = Math.floor((moveNumber - 1) / 2);
+            document.getElementById('currentTurn').textContent = game.turn() === 'w' ? 'White' : 'Black';
+        }
+
+        function updateStatus(message, type = '') {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = type;
+        }
+
+        function updateConnectionStatus(online) {
+            connectionOnline = online;
+            const statusElement = document.getElementById('connectionStatus');
+            
+            if (online) {
+                statusElement.className = 'connection-status connection-online';
+                statusElement.textContent = '✅ Connected to your trained AI';
+            } else {
+                statusElement.className = 'connection-status connection-offline';
+                statusElement.textContent = '❌ Training server offline';
+            }
+        }
+
+        function updateAIInfo(aiInfo) {
+            if (aiInfo.generation !== undefined) {
+                document.getElementById('generation').textContent = aiInfo.generation;
+            }
+            if (aiInfo.gamesPlayed !== undefined) {
+                document.getElementById('gamesPlayed').textContent = aiInfo.gamesPlayed;
+            }
+            if (aiInfo.winRate !== undefined) {
+                document.getElementById('winRate').textContent = aiInfo.winRate + '%';
+            }
+        }
+
+        function handleGameOver() {
+            gameActive = false;
+            document.getElementById('resignBtn').disabled = true;
+            document.getElementById('undoBtn').disabled = true;
+            document.getElementById('hintBtn').disabled = true;
+            
+            let result = '';
+            
+            if (game.in_checkmate()) {
+                const winner = game.turn() === 'w' ? 'Black' : 'White';
+                result = `Checkmate! ${winner} wins!`;
+                
+                if ((winner === 'White' && playerSide === 'white') || 
+                    (winner === 'Black' && playerSide === 'black')) {
+                    updateStatus('🎉 You defeated the AI!', 'status-success');
+                } else {
+                    updateStatus('🤖 The AI won this time!', 'status-game-over');
+                }
+            } else if (game.in_stalemate()) {
+                updateStatus('🤝 Stalemate - Draw!', 'status-game-over');
+            } else if (game.in_threefold_repetition()) {
+                updateStatus('🤝 Draw by repetition!', 'status-game-over');
+            } else if (game.insufficient_material()) {
+                updateStatus('🤝 Draw - insufficient material!', 'status-game-over');
+            } else {
+                updateStatus('🤝 Draw!', 'status-game-over');
+            }
+            
+            debugLog('Game over: ' + result);
+        }
+
+        async function testConnection() {
+            try {
+                debugLog('Testing connection to training server...');
+                updateStatus('🔧 Testing connection to your AI...', 'status-waiting');
+                
+                const response = await fetch(`${SERVER_URL}/player-test`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Test failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    debugLog(`Connection successful! AI Gen ${data.aiGeneration}, ${data.aiGamesPlayed} games played`);
+                    updateStatus('✅ Connected to your trained AI!', 'status-success');
+                    updateConnectionStatus(true);
+                    updateAIInfo({
+                        generation: data.aiGeneration,
+                        gamesPlayed: data.aiGamesPlayed,
+                        winRate: data.aiWinRate
+                    });
+                } else {
+                    throw new Error(data.message || 'Test failed');
+                }
+                
+            } catch (error) {
+                debugLog('Connection test failed: ' + error.message);
+                updateStatus('❌ Cannot connect to training server. Please start it first.', 'status-error');
+                updateConnectionStatus(false);
+            }
+        }
+
+        async function loadAIStats() {
+            try {
+                const response = await fetch(`${SERVER_URL}/stats`);
+                
+                if (!response.ok) {
+                    throw new Error(`Stats request failed: ${response.status}`);
+                }
+                
+                const stats = await response.json();
+                debugLog('AI stats refreshed');
+                
+                updateAIInfo({
+                    generation: stats.generation || 0,
+                    gamesPlayed: stats.gamesPlayed || 0,
+                    winRate: stats.winRate || 0
+                });
+                
+                updateConnectionStatus(true);
+                
+            } catch (error) {
+                debugLog('Error loading stats: ' + error.message);
+                updateConnectionStatus(false);
+            }
+        }
+
+        async function getHint() {
+            if (!gameActive || isAIThinking || !connectionOnline) return;
+            
+            try {
+                debugLog('Requesting hint from AI...');
+                
+                const response = await fetch(`${SERVER_URL}/player-evaluate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fen: game.fen() })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Hint request failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const evaluation = data.evaluation.toFixed(3);
+                    const perspective = data.perspective;
+                    alert(`💡 Neural Network Evaluation:\n\nPosition value: ${evaluation}\nFrom ${perspective}'s perspective\n\n${evaluation > 0 ? 'Positive = good for White' : 'Negative = good for Black'}`);
+                } else {
+                    alert('💡 Unable to get evaluation from AI');
+                }
+                
+            } catch (error) {
+                debugLog('Hint request failed: ' + error.message);
+                alert('💡 Cannot get hint - check connection to training server');
+            }
+        }
+
+        function newGame() {
+            game = new Chess();
+            board.position('start');
+            moveHistory = [];
+            moveNumber = 1;
+            gameActive = false;
+            isAIThinking = false;
+            
+            document.getElementById('moves').innerHTML = '';
+            updateGameInfo();
+            clearHighlights();
+            
+            document.getElementById('resignBtn').disabled = true;
+            document.getElementById('undoBtn').disabled = true;
+            document.getElementById('hintBtn').disabled = true;
+            document.getElementById('startGameBtn').disabled = !playerSide || !connectionOnline;
+            
+            updateStatus('Choose your side to challenge the AI!', 'status-waiting');
+            debugLog('New game initialized');
+        }
+
+        function startGame() {
+            if (!playerSide || !connectionOnline) return;
+            
+            debugLog(`Starting game - Player: ${playerSide}, AI connected: ${connectionOnline}`);
+            gameActive = true;
+            document.getElementById('resignBtn').disabled = false;
+            document.getElementById('undoBtn').disabled = false;
+            document.getElementById('hintBtn').disabled = false;
+            
+            board.orientation(playerSide);
+            
+            if (playerSide === 'white') {
+                updateStatus('🎯 Your turn! You are White vs the Neural Network', 'status-player-turn');
+            } else {
+                updateStatus('🤖 Neural Network starts as White', 'status-ai-turn');
+                setTimeout(makeAIMove, 1000);
+            }
+        }
+
+        function resignGame() {
+            if (!gameActive) return;
+            
+            if (confirm('Are you sure you want to resign against the AI?')) {
+                gameActive = false;
+                updateStatus('🏳️ You resigned against the neural network!', 'status-game-over');
+                document.getElementById('resignBtn').disabled = true;
+                document.getElementById('undoBtn').disabled = true;
+                document.getElementById('hintBtn').disabled = true;
+                debugLog('Player resigned');
+            }
+        }
+
+        function undoMove() {
+            if (!gameActive || moveHistory.length < 2 || isAIThinking) return;
+            
+            game.undo(); // Undo AI move
+            game.undo(); // Undo player move
+            
+            board.position(game.fen());
+            
+            moveHistory = moveHistory.slice(0, -2);
+            moveNumber -= 2;
+            
+            document.getElementById('moves').innerHTML = moveHistory.join('<br>');
+            updateGameInfo();
+            clearHighlights();
+            
+            updateStatus('🎯 Your turn!', 'status-player-turn');
+            debugLog('Moves undone');
+        }
+
+        // Event Listeners
+        document.querySelectorAll('.side-option').forEach(option => {
+            option.addEventListener('click', () => {
+                document.querySelectorAll('.side-option').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+                
+                playerSide = option.dataset.side;
+                document.getElementById('startGameBtn').disabled = !connectionOnline;
+                debugLog('Selected side: ' + playerSide);
+            });
+        });
+
+        document.getElementById('startGameBtn').addEventListener('click', startGame);
+        document.getElementById('newGameBtn').addEventListener('click', newGame);
+        document.getElementById('resignBtn').addEventListener('click', resignGame);
+        document.getElementById('undoBtn').addEventListener('click', undoMove);
+        document.getElementById('hintBtn').addEventListener('click', getHint);
+        document.getElementById('refreshStatsBtn').addEventListener('click', loadAIStats);
+        document.getElementById('testBtn').addEventListener('click', testConnection);
+
+        // Initialize
+        initializeBoard();
+        updateStatus('🔌 Connecting to your trained AI...', 'status-waiting');
+        updateGameInfo();
+        
+        // Test connection on startup
+        testConnection();
+        
+        // Auto-refresh stats every 30 seconds
+        setInterval(loadAIStats, 30000);
+    </script>
+</body>
+</html>

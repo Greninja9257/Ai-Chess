@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RL Chess AI - Self-Training Chess Engine with Persistent Learning</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            align-items: start;
+        }
+        
+        .game-container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+        
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .ai-stats, .data-panel {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 25px;
+            font-style: italic;
+        }
+        
+        #board {
+            margin: 20px auto;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .controls {
+            margin: 25px 0;
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .small-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        .primary-btn {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+        
+        .secondary-btn {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            color: white;
+        }
+        
+        .warning-btn {
+            background: linear-gradient(45deg, #FF9800, #F57C00);
+            color: white;
+        }
+        
+        .danger-btn {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+        }
+        
+        .reset-btn {
+            background: linear-gradient(45deg, #9C27B0, #7B1FA2);
+            color: white;
+        }
+        
+        .success-btn {
+            background: linear-gradient(45deg, #4CAF50, #388E3C);
+            color: white;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .move-history {
+            margin-top: 25px;
+            padding: 20px;
+            background: rgba(248, 249, 250, 0.8);
+            border-radius: 10px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .move-history h3 {
+            margin-top: 0;
+            color: #4a5568;
+        }
+        
+        #status {
+            margin: 15px 0;
+            font-weight: bold;
+            font-size: 18px;
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.7);
+        }
+        
+        .status-playing { color: #4CAF50; border-left: 4px solid #4CAF50; }
+        .status-game-over { color: #f44336; border-left: 4px solid #f44336; }
+        .status-thinking { color: #FF9800; border-left: 4px solid #FF9800; }
+        .status-resetting { color: #9C27B0; border-left: 4px solid #9C27B0; }
+        .status-saving { color: #2196F3; border-left: 4px solid #2196F3; }
+        
+        .stats-header, .data-header {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .stat-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            color: #2d3748;
+        }
+        
+        .generation-badge {
+            display: inline-block;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        
+        .persistent-badge {
+            display: inline-block;
+            background: linear-gradient(45deg, #4CAF50, #388E3C);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-left: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            transition: width 0.3s ease;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: #4CAF50;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .data-storage-info {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(76, 175, 80, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+            font-size: 0.9em;
+        }
+        
+        .data-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        
+        .game-history {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(248, 249, 250, 0.8);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        
+        .history-item {
+            padding: 8px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            font-size: 0.9em;
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .timestamp {
+            color: #718096;
+            font-size: 0.8em;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            body {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            button {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="game-container">
+            <h1>🧠 RL Chess AI</h1>
+            <p class="subtitle">Self-Training Neural Network with Persistent Learning</p>
+            
+            <div id="board"></div>
+            
+            <div class="controls">
+                <button id="startBtn" class="primary-btn">▶ Start Game</button>
+                <button id="resetBtn" class="secondary-btn">🔄 Reset</button>
+                <button id="pauseBtn" class="warning-btn">⏸ Pause</button>
+                <button id="trainBtn" class="danger-btn">🎯 Force Training</button>
+                <button id="manualResetBtn" class="reset-btn">🔄 Manual Reset</button>
+            </div>
+            
+            <div id="status"></div>
+            
+            <div class="move-history">
+                <h3>📝 Move History</h3>
+                <div id="moves"></div>
+            </div>
+        </div>
+        
+        <div class="side-panel">
+            <div class="ai-stats">
+                <div class="stats-header">🤖 AI Statistics</div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Generation:</span>
+                    <span class="stat-value" id="generation">0</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Games Played:</span>
+                    <span class="stat-value" id="gamesPlayed">0</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Wins:</span>
+                    <span class="stat-value" id="wins">0</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Draws:</span>
+                    <span class="stat-value" id="draws">0</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Losses:</span>
+                    <span class="stat-value" id="losses">0</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Win Rate:</span>
+                    <span class="stat-value" id="winRate">0%</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Exploration:</span>
+                    <span class="stat-value" id="epsilon">0.100</span>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <div class="stat-label">Training Progress</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="trainingProgress" style="width: 0%"></div>
+                    </div>
+                    <div style="text-align: center; font-size: 0.9em; color: #718096;">
+                        <span id="progressText">0/10 games until next training</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px; text-align: center;">
+                    <button id="refreshStatsBtn" class="secondary-btn small-btn">
+                        🔄 Refresh Stats
+                    </button>
+                </div>
+            </div>
+            
+            <div class="data-panel">
+                <div class="data-header">💾 Data Storage</div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Training Samples:</span>
+                    <span class="stat-value" id="trainingData">0</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Game History:</span>
+                    <span class="stat-value" id="gameHistory">0</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">Data Storage:</span>
+                    <span class="stat-value">
+                        <span class="persistent-badge">ENABLED</span>
+                    </span>
+                </div>
+                
+                <div class="data-storage-info">
+                    <strong>🔄 Persistent Learning:</strong> All training data, game history, and neural network weights are automatically saved to disk and loaded on restart.
+                </div>
+                
+                <div class="data-controls">
+                    <button id="saveDataBtn" class="success-btn small-btn">💾 Save Data Now</button>
+                    <button id="exportDataBtn" class="secondary-btn small-btn">📤 Export Data</button>
+                    <button id="viewHistoryBtn" class="secondary-btn small-btn">📊 View History</button>
+                </div>
+                
+                <div id="gameHistoryPanel" class="game-history" style="display: none;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">Recent Games:</div>
+                    <div id="historyContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let board = null;
+        let game = new Chess();
+        let moveNumber = 1;
+        let isPlaying = false;
+        let isThinking = false;
+        let moveHistory = [];
+        let autoResetDetected = false;
+
+        function initializeBoard() {
+            board = Chessboard('board', {
+                position: 'start',
+                pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+                orientation: 'white'
+            });
+        }
+
+        function updateStatus(message, type = '') {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = type;
+        }
+
+        function updateAIStats(stats) {
+            if (!stats) return;
+            
+            document.getElementById('generation').textContent = stats.generation;
+            document.getElementById('gamesPlayed').textContent = stats.gamesPlayed;
+            document.getElementById('wins').textContent = stats.wins;
+            document.getElementById('draws').textContent = stats.draws;
+            document.getElementById('losses').textContent = stats.losses;
+            document.getElementById('winRate').textContent = stats.winRate + '%';
+            document.getElementById('epsilon').textContent = stats.epsilon;
+            document.getElementById('trainingData').textContent = stats.trainingDataSize || 0;
+            document.getElementById('gameHistory').textContent = stats.gameHistorySize || 0;
+            
+            // Update progress bar
+            const gamesUntilTraining = 10 - (stats.gamesPlayed % 10);
+            const progress = ((10 - gamesUntilTraining) / 10) * 100;
+            document.getElementById('trainingProgress').style.width = progress + '%';
+            document.getElementById('progressText').textContent = 
+                `${10 - gamesUntilTraining}/10 games until next training`;
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('http://localhost:3000/stats');
+                const stats = await response.json();
+                updateAIStats(stats);
+                
+                return stats;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                updateStatus('❌ Connection error');
+                return null;
+            }
+        }
+
+        async function makeMove() {
+            if (!isPlaying || isThinking) return;
+
+            if (game.game_over() && !autoResetDetected) {
+                return;
+            }
+
+            isThinking = true;
+            updateStatus('🤔 AI is thinking...', 'status-thinking');
+            
+            const statusElement = document.getElementById('status');
+            statusElement.innerHTML = '🤔 AI is thinking... <div class="loading"></div>';
+
+            try {
+                const response = await fetch('http://localhost:3000/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Server error');
+                }
+
+                const data = await response.json();
+
+                if (data.error) {
+                    updateStatus('❌ Error: ' + data.error, 'status-game-over');
+                    isThinking = false;
+                    return;
+                }
+
+                if (data.newGameStarted) {
+                    const gameResult = data.result || 'Game completed';
+                    updateStatus(`🏁 ${gameResult} - Starting new game...`, 'status-playing');
+                    
+                    game = new Chess();
+                    board.position('start');
+                    moveNumber = 1;
+                    moveHistory = [];
+                    document.getElementById('moves').innerHTML = '';
+                    
+                    if (data.aiStats) {
+                        updateAIStats(data.aiStats);
+                    }
+                    
+                    setTimeout(() => {
+                        if (isPlaying) {
+                            updateStatus('🎮 New game started - AI vs AI continuing...', 'status-playing');
+                            setTimeout(makeMove, 1500);
+                        }
+                    }, 2000);
+                    
+                    isThinking = false;
+                    return;
+                }
+
+                game.load(data.fen);
+                board.position(data.fen);
+        
+                const colorName = game.turn() === 'w' ? 'Black' : 'White';
+                const moveText = `${Math.ceil(moveNumber/2)}. ${colorName}: ${data.move}`;
+                moveHistory.push(moveText);
+                
+                if (moveHistory.length > 20) {
+                    moveHistory = moveHistory.slice(-20);
+                }
+                document.getElementById('moves').innerHTML = moveHistory.join('<br>');
+        
+                moveNumber++;
+
+                if (data.aiStats) {
+                    updateAIStats(data.aiStats);
+                }
+
+                updateStatus('🎮 Game in progress - Learning with persistent data storage...', 'status-playing');
+                setTimeout(makeMove, 1500);
+
+            } catch (error) {
+                console.error('Error:', error);
+                updateStatus('❌ Connection error. Retrying...', 'status-game-over');
+                setTimeout(() => {
+                    if (isPlaying) {
+                        makeMove();
+                    }
+                }, 3000);
+            }
+            
+            isThinking = false;
+        }
+
+        function pauseGame() {
+            isPlaying = false;
+            document.getElementById('pauseBtn').textContent = '▶ Resume';
+            document.getElementById('startBtn').textContent = '▶ Start Game';
+            document.getElementById('startBtn').disabled = false;
+        }
+
+        function resumeGame() {
+            isPlaying = true;
+            document.getElementById('pauseBtn').textContent = '⏸ Pause';
+            document.getElementById('startBtn').textContent = '⏸ Playing...';
+            document.getElementById('startBtn').disabled = true;
+            updateStatus('▶ Game resumed', 'status-playing');
+            setTimeout(makeMove, 1000);
+        }
+
+        async function resetGame() {
+            try {
+                const response = await fetch('http://localhost:3000/reset', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                game = new Chess();
+                board.position('start');
+                moveNumber = 1;
+                moveHistory = [];
+                document.getElementById('moves').innerHTML = '';
+                updateStatus('🎯 Ready to start new game');
+                isPlaying = false;
+                isThinking = false;
+                autoResetDetected = false;
+                
+                document.getElementById('startBtn').textContent = '▶ Start Game';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('pauseBtn').textContent = '⏸ Pause';
+                
+                if (data.aiStats) {
+                    updateAIStats(data.aiStats);
+                }
+            } catch (error) {
+                console.error('Error resetting game:', error);
+                updateStatus('❌ Error resetting game');
+            }
+        }
+
+        async function forceTraining() {
+            try {
+                updateStatus('🎯 Training AI model...', 'status-thinking');
+                document.getElementById('trainBtn').disabled = true;
+                document.getElementById('trainBtn').innerHTML = '🎯 Training... <div class="loading"></div>';
+                
+                const response = await fetch('http://localhost:3000/force-training', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    updateStatus('❌ Training error: ' + data.error, 'status-game-over');
+                } else {
+                    updateStatus('✅ Training completed successfully!', 'status-playing');
+                    updateAIStats(data.stats);
+                }
+                
+                document.getElementById('trainBtn').disabled = false;
+                document.getElementById('trainBtn').innerHTML = '🎯 Force Training';
+            } catch (error) {
+                console.error('Error during training:', error);
+                updateStatus('❌ Training failed');
+                document.getElementById('trainBtn').disabled = false;
+                document.getElementById('trainBtn').innerHTML = '🎯 Force Training';
+            }
+        }
+
+        async function manualReset() {
+            if (!confirm('Are you sure you want to manually reset the AI? This will erase ALL training progress and saved data.')) {
+                return;
+            }
+            
+            try {
+                updateStatus('🔄 Manually resetting AI...', 'status-resetting');
+                document.getElementById('manualResetBtn').disabled = true;
+                document.getElementById('manualResetBtn').innerHTML = '🔄 Resetting... <div class="loading"></div>';
+                
+                pauseGame();
+                
+                const response = await fetch('http://localhost:3000/manual-reset', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    updateStatus('❌ Reset error: ' + data.error, 'status-game-over');
+                } else {
+                    updateStatus('✅ AI manually reset - all data cleared!', 'status-playing');
+                    updateAIStats(data.stats);
+                    
+                    game = new Chess();
+                    board.position('start');
+                    moveNumber = 1;
+                    moveHistory = [];
+                    document.getElementById('moves').innerHTML = '';
+                    document.getElementById('gameHistoryPanel').style.display = 'none';
+                }
+                
+                document.getElementById('manualResetBtn').disabled = false;
+                document.getElementById('manualResetBtn').innerHTML = '🔄 Manual Reset';
+            } catch (error) {
+                console.error('Error during manual reset:', error);
+                updateStatus('❌ Manual reset failed');
+                document.getElementById('manualResetBtn').disabled = false;
+                document.getElementById('manualResetBtn').innerHTML = '🔄 Manual Reset';
+            }
+        }
+
+        async function saveData() {
+            try {
+                updateStatus('💾 Saving all data...', 'status-saving');
+                document.getElementById('saveDataBtn').disabled = true;
+                document.getElementById('saveDataBtn').innerHTML = '💾 Saving... <div class="loading"></div>';
+                
+                const response = await fetch('http://localhost:3000/save-data', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    updateStatus('❌ Save error: ' + data.error, 'status-game-over');
+                } else {
+                    updateStatus('✅ All data saved successfully!', 'status-playing');
+                    updateAIStats(data.stats);
+                }
+                
+                document.getElementById('saveDataBtn').disabled = false;
+                document.getElementById('saveDataBtn').innerHTML = '💾 Save Data Now';
+            } catch (error) {
+                console.error('Error saving data:', error);
+                updateStatus('❌ Save failed');
+                document.getElementById('saveDataBtn').disabled = false;
+                document.getElementById('saveDataBtn').innerHTML = '💾 Save Data Now';
+            }
+        }
+
+        async function exportData() {
+            try {
+                const response = await fetch('http://localhost:3000/export-data');
+                const data = await response.json();
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `chess_ai_data_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                updateStatus('📤 Data exported successfully!', 'status-playing');
+            } catch (error) {
+                console.error('Error exporting data:', error);
+                updateStatus('❌ Export failed');
+            }
+        }
+
+        async function viewHistory() {
+            try {
+                const panel = document.getElementById('gameHistoryPanel');
+                if (panel.style.display === 'none') {
+                    const response = await fetch('http://localhost:3000/game-history?limit=10');
+                    const history = await response.json();
+                    
+                    const content = document.getElementById('historyContent');
+                    if (history.length === 0) {
+                        content.innerHTML = '<div style="color: #718096;">No games played yet</div>';
+                    } else {
+                        content.innerHTML = history.map((game, index) => `
+                            <div class="history-item">
+                                <strong>Game ${game.gameInfo?.gameNumber || (history.length - index)}</strong> - 
+                                <span style="color: ${game.result === 'win' ? '#4CAF50' : game.result === 'loss' ? '#f44336' : '#FF9800'};">
+                                    ${game.result.toUpperCase()}
+                                </span>
+                                <div class="timestamp">${new Date(game.timestamp).toLocaleString()}</div>
+                                <div style="font-size: 0.8em; color: #666;">
+                                    Moves: ${game.totalMoves}, Gen: ${game.gameInfo?.generation || 'N/A'}
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                    
+                    panel.style.display = 'block';
+                    document.getElementById('viewHistoryBtn').textContent = '📊 Hide History';
+                } else {
+                    panel.style.display = 'none';
+                    document.getElementById('viewHistoryBtn').textContent = '📊 View History';
+                }
+            } catch (error) {
+                console.error('Error loading history:', error);
+                updateStatus('❌ Failed to load history');
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('startBtn').addEventListener('click', () => {
+            if (!isPlaying && !isThinking) {
+                resumeGame();
+            }
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', resetGame);
+
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            if (isThinking) return;
+            
+            if (isPlaying) {
+                pauseGame();
+                updateStatus('⏸ Game paused');
+            } else {
+                resumeGame();
+            }
+        });
+
+        document.getElementById('trainBtn').addEventListener('click', forceTraining);
+        document.getElementById('manualResetBtn').addEventListener('click', manualReset);
+        document.getElementById('refreshStatsBtn').addEventListener('click', loadStats);
+        document.getElementById('saveDataBtn').addEventListener('click', saveData);
+        document.getElementById('exportDataBtn').addEventListener('click', exportData);
+        document.getElementById('viewHistoryBtn').addEventListener('click', viewHistory);
+
+        // Auto-refresh stats every 30 seconds
+        setInterval(loadStats, 30000);
+
+        // Initialize
+        initializeBoard();
+        loadStats();
+        updateStatus('🎯 Ready to start - AI with persistent learning enabled');
+    </script>
+</body>
+</html>
